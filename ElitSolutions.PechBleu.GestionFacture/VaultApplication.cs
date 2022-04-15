@@ -43,76 +43,155 @@ namespace ElitSolutions.PechBleu.GestionFacture
 
             //
             int numFac;
-            int numTiers;
-            int numLot;
-            int numLotPrec = -1;
+            ObjVerEx oFac = new ObjVerEx();
+            int idFac = -1;
+            DateTime dateFacture;
+            int numTiers = -1;
+            int numPiece;
+            int numPiecePrec = -1;
 
-            //
-            string ec = "";
+            // Initialise la première ligne du tableau
+            string ec = lignes[0] + '\n';
 
             // Pour chaque ligne du contenu texte.
-            foreach ( string ligne in lignes )
+            for (int i = 1; i < lignes.Length; i++)
             {
                 // Enregistre la ligne.
-                ec += ligne + '\n';
-
+                ec += lignes[i] + '\n';
+            
                 // Copie les chaînes séparées par tabulation dans un tableau.
-                string[] valeurs = ligne.Split('\t');
+                string[] valeurs = lignes[i].Split('\t');
+
+                // Mémorise le tiers si pas vide
+                if(valeurs[6] != "")
+                {
+                    // Récupère le numéro de tiers.
+                    numTiers = int.Parse(valeurs[6]);
+                }
+                
+                // Récupère le numéro de pièce.
+                numPiece = int.Parse(valeurs[0]);
+
+                // Passe à la ligne suivante si le numéro de pièce n'a pas changé ou si on est à la première ligne
+                if ( numPiecePrec == numPiece || i == 1)
+                {   
+                    // Mémorise le numéro de pièce.
+                    numPiecePrec = numPiece; 
+                    
+                    // Passe à la ligne suivante
+                    continue; 
+                }
 
                 // Récupère le numéro de facture.
                 numFac = int.Parse(valeurs[3]);
 
-                // Récupère le numéro de tiers.
-                numTiers = int.Parse(valeurs[6]);
+                // Récupère la date de la facture
+                dateFacture = DateTime.Parse(valeurs[2]);
 
-                // Récupère le numéro de lot.
-                numLot = int.Parse(valeurs[0]);
-
-                // Passe à la ligne suivante si le numéro de lot a changé.
-                if ( numLotPrec == numLot ) { continue; }
-
-                // Mémorise le numéro de lot.
-                numLotPrec = numLot;
-
-                // Cherche le fournisseur.
+                // Cherche le fournisseur PFO.
                 var searchBuilder = new MFSearchBuilder(env.Vault);
-                searchBuilder.Class(this.Configuration.ClassFournisseur);
-                searchBuilder.Property(this.Configuration.PropDefNumFou, MFDataType.MFDatatypeText, numTiers);
-                //// Only items with an external ID (display ID) of "SUP12345".
-                //searchBuilder.Status(MFStatusType.MFStatusTypeExtID, MFDataType.MFDataTypeText, "SUP12345")
+                searchBuilder.Class(this.Configuration.ClassFournisseurPFO);
+                searchBuilder.Status(MFStatusType.MFStatusTypeExtID, MFDataType.MFDatatypeInteger, numTiers);
                 searchBuilder.Deleted(false);
                 var searchResults = searchBuilder.FindEx();
 
-                // Passe à la ligne suivante si aucun résultat.
-                if ( searchResults.Count <= 0) { continue; }
-                    
-                // Récupère l'ID du fournisseur trouvé.
-                int idFou = searchResults[0].ID;
+                // Si au moins un résultat.
+                if ( searchResults.Count > 0) 
+                {
+                    // Récupère l'ID du fournisseur trouvé.
+                    int idFou = searchResults[0].ID;
 
-                // Cherche la facture.
+                    // Cherche la facture.
+                    searchBuilder = new MFSearchBuilder(env.Vault);
+                    searchBuilder.Class(this.Configuration.ClassFacture);
+                    searchBuilder.Property(this.Configuration.PropDefFournisseurPFO, MFDataType.MFDatatypeLookup, idFou);
+                    searchBuilder.Property(this.Configuration.PropDefNumFac, MFDataType.MFDatatypeText, numFac);
+                    searchBuilder.Property(this.Configuration.PropDefDateFact, MFDataType.MFDatatypeDate, dateFacture);
+                    searchBuilder.Property(this.Configuration.PropDefSociete, MFDataType.MFDatatypeLookup, this.Configuration.idSocietePFO);
+                    searchBuilder.Deleted(false);
+                    searchResults = searchBuilder.FindEx();
+
+                    // Si au moins un résultat.
+                    if (searchResults.Count > 0)
+                    {
+                        // Récupère l'ID de la facture trouvée.
+                        idFac = searchResults[0].ID;
+                        oFac = searchResults[0];
+                    }
+                }
+
+                // Cherche le fournisseur YEDRA.
                 searchBuilder = new MFSearchBuilder(env.Vault);
-                searchBuilder.Class(this.Configuration.ClassFacture);
-                searchBuilder.Property(this.Configuration.PropDefFournisseur, MFDataType.MFDatatypeLookup, idFou);
-                searchBuilder.Property(this.Configuration.PropDefNumFac, MFDataType.MFDatatypeText, numFac);
+                searchBuilder.Class(this.Configuration.ClassFournisseurYEDRA);
+                searchBuilder.Status(MFStatusType.MFStatusTypeExtID, MFDataType.MFDatatypeInteger, numTiers);
                 searchBuilder.Deleted(false);
                 searchResults = searchBuilder.FindEx();
 
-                // Passe à la ligne suivante si aucun résultat.
-                if (searchResults.Count <= 0) { continue; }
+                // Si au moins un résultat.
+                if (searchResults.Count > 0)
+                {
+                    // Récupère l'ID du fournisseur trouvé.
+                    int idFou = searchResults[0].ID;
 
-                //// Crée le fichier temporaire.
-                //string tempFileName = Path.GetTempFileName();
+                    // Cherche la facture.
+                    searchBuilder = new MFSearchBuilder(env.Vault);
+                    searchBuilder.Class(this.Configuration.ClassFacture);
+                    searchBuilder.Property(this.Configuration.PropDefFournisseurYEDRA, MFDataType.MFDatatypeLookup, idFou);
+                    searchBuilder.Property(this.Configuration.PropDefNumFac, MFDataType.MFDatatypeText, numFac);
+                    searchBuilder.Property(this.Configuration.PropDefDateFact, MFDataType.MFDatatypeDate, dateFacture);
+                    searchBuilder.Property(this.Configuration.PropDefSociete, MFDataType.MFDatatypeLookup, this.Configuration.idSocieteYEDRA);
+                    searchBuilder.Deleted(false);
+                    searchResults = searchBuilder.FindEx();
 
-                //// Ajoute les écritures au fichier temporaire.
-                //StreamWriter streamWriter = File.AppendText(tempFileName);
-                //streamWriter.Write(ec);
-                //streamWriter.Flush();
-                //streamWriter.Close();
+                    // Si au moins un résultat.
+                    if (searchResults.Count > 0)
+                    {
+                        if (idFac == -1)
+                        {
+                            // Récupère l'ID de la facture trouvée.
+                            idFac = searchResults[0].ID;
+                            oFac = searchResults[0];
+                        }
+                        else
+                        {
+                            idFac = -1;
+                        }
+                    }
+                }
 
-                //// Crée le document.
+                // Crée le fichier temporaire.
+                string tempFileName = Path.GetTempFileName();
 
-                //// Supprime le fichier temporaire s'il existe.
-                //if ( File.Exists(tempFileName) ) { File.Delete(tempFileName); }
+                // Ajoute les écritures au fichier temporaire.
+                StreamWriter streamWriter = File.AppendText(tempFileName);
+                streamWriter.Write(ec);
+                streamWriter.Flush();
+                streamWriter.Close();
+
+                // Crée le document.
+
+                // Create a property values builder.
+                var oPropValBuilder = new MFPropertyValuesBuilder(env.Vault)
+                    .SetClass(this.Configuration.ClassEC.ID)
+                    .SetWorkflowState(this.Configuration.WFEC, this.Configuration.StateEC)
+                    .SetTitle("EC " + numFac + " " + numTiers + " " + dateFacture.ToString("dd/MM/yyyy"));
+
+                // Use the values to create an object.
+                int idEC = env.Vault.ObjectOperations.CreateNewObjectExQuick((int)MFBuiltInObjectType.MFBuiltInObjectTypeDocument, oPropValBuilder.Values);
+
+                //
+                if(idFac != -1)
+                {
+                    //
+                    oFac.SaveProperty(this.Configuration.PropDefEC, MFDataType.MFDatatypeLookup, idEC);
+                }
+
+                // Supprime le fichier temporaire s'il existe.
+                if (File.Exists(tempFileName)) { File.Delete(tempFileName); }
+
+                // Réinitialise l'id
+                idFac = -1;
+
             }
             //throw new System.NotImplementedException();
         }
